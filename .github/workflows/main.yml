@@ -1,243 +1,46 @@
-name: Initialize Apex Titan Matrix Repository
+name: Initialize Apex Titan Matrix Structure
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-structure:
+  build-skeleton:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install Dependencies
+      - name: Create Enterprise Directory Tree and Files
         run: |
-          pip install torch numpy pyyaml
-
-      - name: Build Enterprise Project Structure and Generate Code
-        run: |
-          import os
-
-          # Create enterprise directory tree
-          dirs = [
-              "core_math",
-              "merge_configs",
-              "kaggle_runner"
-          ]
-          for d in dirs:
-              os.makedirs(d, exist_ok=True)
-              print(f"Created directory: {d}")
-
-          # 1. Generate core_math/tensor_purifier.py (SVD + Top 40% Absolute Protection)
-          with open("core_math/tensor_purifier.py", "w") as f:
-              f.write('''import torch
-import numpy as np
-
-def purify_expert_tensors(expert_tensor, base_tensor, top_k_ratio=0.4, noise_threshold=0.05):
-    """
-    Janvi's Custom DARE Implementation:
-    1. Locks top 40% absolute high-impact weights.
-    2. Scans bottom 60% for logic/interaction signatures using SVD.
-    3. Destroys ONLY pure noise (bottom 5%).
-    """
-    delta = expert_tensor - base_tensor
-    magnitude = torch.abs(delta)
-    
-    threshold_value = torch.quantile(magnitude.float(), 1.0 - top_k_ratio)
-    top_40_mask = magnitude >= threshold_value
-    bottom_60_mask = magnitude < threshold_value
-    
-    bottom_weights = delta * bottom_60_mask
-    
-    if len(bottom_weights.shape) == 2:
-        U, S, V = torch.svd(bottom_weights.float())
-        S_clean = torch.where(S > noise_threshold * S.max(), S, torch.zeros_like(S))
-        clean_bottom_60 = torch.mm(torch.mm(U, torch.diag(S_clean)), V.t()).to(delta.dtype)
-    else:
-        clean_bottom_60 = torch.where(magnitude > (noise_threshold * magnitude.max()), delta, torch.zeros_like(delta)) * bottom_60_mask
-
-    final_delta = (delta * top_40_mask) + clean_bottom_60
-    retention_rate = torch.count_nonzero(final_delta) / delta.numel()
-    if retention_rate > 0:
-        rescaled_delta = final_delta * (1.0 / retention_rate)
-    else:
-        rescaled_delta = final_delta
-        
-    return base_tensor + rescaled_delta
-
-print("Matrix Status: Tensor Purifier module initialized. Top 40% Locked.")
-''')
-
-          # 2. Generate core_math/clash_resolver.py (Multi-Variable Vector Blur Logic Fix)
-          with open("core_math/clash_resolver.py", "w") as f:
-              f.write('''import torch
-
-def resolve_blur_clash(tensor_expert_a, tensor_expert_b, base_tensor, alpha=0.4, beta=0.3, gamma=0.3):
-    """
-    Multi-Variable Vector Competition (The Blur Logic Fix):
-    Resolves tensor clash based on Magnitude (Alpha), Depth Importance (Beta), and Utility Metrics (Gamma).
-    """
-    delta_a = tensor_expert_a - base_tensor
-    delta_b = tensor_expert_b - base_tensor
-    
-    # Mathematical Multi-Variable Scoring
-    score_a = alpha * torch.norm(delta_a.float()) + beta * (1.2) + gamma * (1.5)
-    score_b = alpha * torch.norm(delta_b.float()) + beta * (1.1) + gamma * (1.4)
-    
-    if score_a >= score_b:
-        return tensor_expert_a
-    return tensor_expert_b
-
-print("Matrix Status: Clash Resolver module operational. Multi-Variable Vectors enabled.")
-''')
-
-          # 3. Generate core_math/rope_scaler.py (3 Million Context Window Embeddings)
-          with open("core_math/rope_scaler.py", "w") as f:
-              f.write('''import json
-import os
-
-def apply_3m_context_rope(config_path):
-    """
-    Dynamic NTK-Aware RoPE Scaling: Hardcodes 3 Million Context Window (3145728 tokens).
-    Updates configuration parameters dynamically.
-    """
-    if not os.path.exists(config_path):
-        print(f"Config path {config_path} not found. Creating placeholder setup.")
-        config = {}
-    else:
-        with open(config_path, "r") as f:
-            config = json.load(f)
-            
-    config["rope_scaling"] = {
-        "type": "dynamic",
-        "factor": 23.5
-    }
-    config["max_position_embeddings"] = 3145728
-    config["rope_theta"] = 11750000.0
-    
-    with open(config_path, "w") as f:
-        json.dump(config, f, indent=4)
-    print("Matrix Status: 3 Million Context Window RoPE Scaling injected successfully.")
-
-if __name__ == '__main__':
-    apply_3m_context_rope("config.json")
-''')
-
-          # 4. Generate Merge Configurations (Round 1 to 4)
-          with open("merge_configs/round_1_foundation.yaml", "w") as f:
-              f.write('''models:
-  - model: meta-llama/Meta-Llama-3.1-70B-Instruct
-    parameters:
-      weight: 1.0
-  - model: allenai/tulu-3-70b
-    parameters:
-      weight: 0.40
-      density: 0.40
-merge_method: dare_ties
-base_model: meta-llama/Meta-Llama-3.1-70B-Instruct
-parameters:
-  int8_mask: true
-  normalize: true
-dtype: bfloat16
-''')
-
-          with open("merge_configs/round_2_cognitive.yaml", "w") as f:
-              f.write('''models:
-  - model: dynamic_base_round1
-    parameters:
-      weight: 1.0
-  - model: cognitivecomputations/dolphin-2.9.3-llama3-70b
-    parameters:
-      weight: 0.40
-      density: 0.40
-merge_method: slerp
-base_model: dynamic_base_round1
-parameters:
-  t:
-    - filter: self_attn
-      value: [0, 0.5, 0.3, 0.7, 1]
-    - value: 0.5
-dtype: bfloat16
-''')
-
-          with open("merge_configs/round_3_execution.yaml", "w") as f:
-              f.write('''models:
-  - model: dynamic_base_round2
-    parameters:
-      weight: 1.0
-  - model: heavyack/WhiteRabbitNeo-3-70B
-    parameters:
-      weight: 0.45
-      density: 0.40
-merge_method: dare_ties
-base_model: dynamic_base_round2
-parameters:
-  int8_mask: true
-dtype: bfloat16
-''')
-
-          with open("merge_configs/round_4_unchained.yaml", "w") as f:
-              f.write('''models:
-  - model: dynamic_base_round3
-    parameters:
-      weight: 1.0
-  - model: NousResearch/Hermes-3-Llama-3.1-70B
-    parameters:
-      weight: 0.50
-      density: 0.40
-merge_method: dare_ties
-base_model: dynamic_base_round3
-dtype: bfloat16
-''')
-
-          # 5. Generate Kaggle Runner Control Setup
-          with open("kaggle_runner/kernel-metadata.json", "w") as f:
-              f.write('''{
-  "id": "username/apex-titan-matrix-execution",
-  "title": "Apex Titan Matrix Execution",
-  "code_file": "master_execution.py",
-  "language": "python",
-  "kernel_type": "script",
-  "is_private": "true",
-  "enable_gpu": "true",
-  "enable_internet": "true",
-  "dataset_sources": [],
-  "competition_sources": [],
-  "kernel_sources": []
-}
-''')
-
-          with open("kaggle_runner/master_execution.py", "w") as f:
-              f.write('''import os
-import sys
-
-print("=== STARTING SHARDED OUT-OF-CORE MATRIX MERGING ===")
-print("Memory Allocation: 30GB CPU RAM + 30GB GPU VRAM Sharding Optimized")
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from core_math.tensor_purifier import purify_expert_tensors
-from core_math.clash_resolver import resolve_blur_clash
-from core_math.rope_scaler import apply_3m_context_rope
-
-print("All operational algorithms successfully verified inside Kaggle environment!")
-print("Matrix Shard Execution Phase is fully armed.")
-''')
-
-          print("Successfully constructed entire enterprise repo structure.")
-        shell: python
+          echo "Building Apex Titan Matrix Structure..."
+          
+          # 1. Create Core Folders
+          mkdir -p core_math
+          mkdir -p merge_configs
+          mkdir -p kaggle_runner
+          
+          # 2. Create Blank Core Math Python Files
+          touch core_math/tensor_purifier.py
+          touch core_math/clash_resolver.py
+          touch core_math/rope_scaler.py
+          
+          # 3. Create Blank Merge Config YAML Files
+          touch merge_configs/round_1_foundation.yaml
+          touch merge_configs/round_2_cognitive.yaml
+          touch merge_configs/round_3_execution.yaml
+          touch merge_configs/round_4_unchained.yaml
+          
+          # 4. Create Blank Kaggle Runner Files
+          touch kaggle_runner/kernel-metadata.json
+          touch kaggle_runner/master_execution.py
+          
+          echo "Skeleton structure built successfully."
 
       - name: Commit and Push Project Infrastructure
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add core_math/ merge_configs/ kaggle_runner/
-          git diff-index --quiet HEAD || git commit -m "Auto-initialize Apex Titan Matrix codebase structure"
+          git diff-index --quiet HEAD || git commit -m "Auto-initialize Apex Titan Matrix codebase skeleton"
           git push origin HEAD:${{ github.ref }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
